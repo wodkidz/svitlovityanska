@@ -1,0 +1,42 @@
+name: Svitlo bot
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: svitlo-bot
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CITY: "м. Вишневе"
+      STREET: "вул. Вітянська"
+      HOUSE: "1А"
+      GROUP: "2.1"
+      WARN_MIN: "30"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install browser driver
+        continue-on-error: true
+        run: npm install --no-save --no-audit --no-fund playwright-core@1
+      - name: Run bot
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+        run: |
+          if command -v xvfb-run >/dev/null; then xvfb-run -a node bot.mjs; else node bot.mjs; fi
+      - name: Save state
+        if: always()
+        run: |
+          [ -f state.json ] || exit 0
+          git add state.json
+          git diff --cached --quiet && exit 0
+          git config user.name "svitlo-bot"
+          git config user.email "svitlo-bot@users.noreply.github.com"
+          git commit -q -m "state"
+          git pull -q --rebase || true
+          git push -q

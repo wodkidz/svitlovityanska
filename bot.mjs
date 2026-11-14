@@ -304,6 +304,77 @@ function warnText(iv, now, today) {
 
 // ───────────────────────── Что написать в канал ─────────────────────────
 
+// ───────────────────────── Итоги и закреплённое сообщение ─────────────────────────
+
+export function durLong(min) {
+  const m = Math.max(0, Math.round(min));
+  const h = Math.floor(m / 60);
+  if (!h) return `${m} хв`;
+  return m % 60 ? `${h} год ${m % 60} хв` : `${h} год`;
+}
+
+function isMonday(date) {
+  const [y, mo, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, mo - 1, d)).getUTCDay() === 1;
+}
+
+function summaryRecord(date, sig, st) {
+  const offs = sig ? dayIntervals(date, sig, 'N') : [];
+  const offMin = offs.reduce((a, iv) => a + (iv.end - iv.start) / MIN, 0);
+  return { date, sched: !!sig, offMin: Math.round(offMin), offN: offs.length, n: st.n || 0, min: st.min || 0 };
+}
+
+function summaryText(r) {
+  const dm = kyiv(dayStart(r.date) + 12 * 60 * MIN).dm;
+  const lines = [`📊 <b>Підсумок за ${dm}</b>`];
+  if (r.sched) {
+    lines.push(r.offMin ? `🔴 За графіком без світла: <b>${durLong(r.offMin)}</b> (${r.offN} відкл.)` : '🟢 За графіком відключень не було');
+  }
+  if (r.n) lines.push(`⚡ Відключень за даними ДТЕК: ${r.n}${r.min ? `, разом ${durLong(r.min)}` : ''}`);
+  return lines.join('\n');
+}
+
+function weekText(week) {
+  const off = week.reduce((a, h) => a + h.offMin, 0);
+  const n = week.reduce((a, h) => a + h.n, 0);
+  const min = week.reduce((a, h) => a + h.min, 0);
+  const lines = [`📅 <b>За тиждень</b> (${week.length} дн.)`, `🔴 За графіком без світла: <b>${durLong(off)}</b>, в середньому ${durLong(off / week.length)} на день`];
+  if (n) lines.push(`⚡ Відключень за даними ДТЕК: ${n}${min ? `, разом ${durLong(min)}` : ''}`);
+  return lines.join('\n');
+}
+
+/** Текст закреплённого сообщения «Зараз» (без строки времени проверки). */
+export function statusBody(state, input, now, cfg, plan) {
+  const today = kyiv(now).date;
+  const glabel = (plan.group || '').replace(/^GPV/i, '');
+  const lines = [`📍 <b>${esc(cfg.street.replace(/^вул\.\s*/i, ''))}, ${esc(cfg.house)}</b>${glabel ? ` · група ${esc(glabel)}` : ''}`];
+  if (input.fact && plan.days[today]) {
+    const cur = plan.offs.find((iv) => iv.start <= now && now < iv.end);
+    const maybe = intervals(plan.days, 'M').find((iv) => iv.start <= now && now < iv.end);
+    if (cur) lines.push(`🔴 Зараз за графіком: відключення до <b>${hmEnd(cur.end)}</b>`);
+    else if (maybe) lines.push(`🟡 Зараз за графіком: можливе відключення до ${hmEnd(maybe.end)}`);
+    else lines.push('🟢 Зараз за графіком: світло є');
+    const next = plan.offs.find((iv) => iv.start > now);
+    lines.push(next ? `🗓 Наступне вимкнення: <b>${intervalText(next, today)}</b>` : '🗓 Наступних відключень у графіку немає');
+  } else {
+    lines.push('🗓 Графік зараз недоступний');
+  }
+  const n = state.notice;
+  if (n) {
+    const kind = noticeKind(n.sub);
+    const end = n.end ? ` до ${whenText(parseDtekDate(n.end), today, n.end)}` : '';
+    lines.push(`${kind.icon} ДТЕК: ${kind.title.toLowerCase()}${end}${input.addr && input.addr.ok ? '' : ' (останні дані)'}`);
+  } else if (input.addr && input.addr.ok) {
+    lines.push('✅ ДТЕК по будинку: відключень немає');
+  }
+  return lines.join('\n');
+}
+
+export function isNight(now, cfg) {
+  const h = kyiv(now).h;
+  return cfg.quietFrom > cfg.quietTo ? h >= cfg.quietFrom || h < cfg.quietTo : h >= cfg.quietFrom && h < cfg.quietTo;
+}
+
 function isoWeek(ms) {
   const d = new Date(ms);
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -324,9 +395,9 @@ function isoWeek(ms) {
 export function decide(state, input, now, cfg) {
   const acts = [];
   const w = structuredClone(state);
-  const act = (text, apply) => {
+  const act = (text, apply, opts = {}) => {
     apply(w);
-    acts.push({ text, apply });
+    acts.push({ text, apply, ...opts });
   };
 
   const today = kyiv(now).date;
@@ -382,13 +453,22 @@ export function decide(state, input, now, cfg) {
     if (cur && !same) {
       act(noticeOnText(cur, now, today, addr.stats), (s) => {
         s.notice = { sub: cur.sub, start: cur.start, end: cur.end, seen: now };
-      });
+        const d = kyiv(cur.startMs || now).date;
+        s.stats = s.stats || {};
+        s.stats[d] = s.stats[d] || { n: 0, min: 0 };
+        s.stats[d].n++;
+      }, { loud: !!noticeKind(cur.sub).emergency });
     } else if (cur && prev && prev.end !== cur.end) {
       act(cur.end ? noticeEndChangedText(cur, prev, today) : null, (s) => {
         s.notice.end = cur.end;
       });
     } else if (!cur && prev) {
       act(noticeOffText(prev, now, today, offs), (s) => {
+        const startMs = parseDtekDate(prev.start) || prev.seen || now;
+        const d = kyiv(startMs).date;
+        s.stats = s.stats || {};
+        s.stats[d] = s.stats[d] || { n: 1, min: 0 };
+        s.stats[d].min += Math.max(0, Math.round((now - startMs) / MIN));
         s.notice = null;
       });
     }
@@ -426,12 +506,32 @@ export function decide(state, input, now, cfg) {
     });
   }
 
-  // 4) Уборка в state
-  const oldDays = Object.keys(w.sched || {}).filter((d) => d < today);
+  // 4) Утренний итог за вчера (и за неделю по понедельникам)
+  const yesterday = addDays(today, -1);
+  if (w.summaryFor !== yesterday && kyiv(now).h >= cfg.summaryHour) {
+    const sig = w.sched && w.sched[yesterday];
+    const st = (w.stats && w.stats[yesterday]) || { n: 0, min: 0 };
+    const rec = sig || st.n ? summaryRecord(yesterday, sig, st) : null;
+    const hist = [...(w.hist || []).filter((h) => h.date !== yesterday), ...(rec ? [rec] : [])].slice(-14);
+    let text = rec && !firstRun ? summaryText(rec) : null;
+    if (text && isMonday(today)) {
+      const week = hist.filter((h) => h.date >= addDays(today, -7));
+      if (week.length >= 3) text += '\n\n' + weekText(week);
+    }
+    act(text, (s) => {
+      s.summaryFor = yesterday;
+      s.hist = hist;
+    });
+  }
+
+  // 5) Уборка в state
+  const oldDays = Object.keys(w.sched || {}).filter((d) => d < yesterday);
+  const oldStats = Object.keys(w.stats || {}).filter((d) => d < addDays(today, -2));
   const oldWarned = (w.warned || []).filter((t) => t < now - 24 * 60 * MIN);
-  if (oldDays.length || oldWarned.length) {
+  if (oldDays.length || oldWarned.length || oldStats.length) {
     act(null, (s) => {
-      for (const d of Object.keys(s.sched || {})) if (d < today) delete s.sched[d];
+      for (const d of Object.keys(s.sched || {})) if (d < yesterday) delete s.sched[d];
+      for (const d of Object.keys(s.stats || {})) if (d < addDays(today, -2)) delete s.stats[d];
       s.warned = (s.warned || []).filter((t) => t >= now - 24 * 60 * MIN);
     });
   }
@@ -713,7 +813,10 @@ async function tg(cfg, method, payload) {
       await sleep(2000 * attempt);
       continue;
     }
-    throw new Error(explainTelegramError(r.status, j.description));
+    const err = new Error(explainTelegramError(r.status, j.description));
+    err.tgDesc = String(j.description || '');
+    err.tgStatus = r.status;
+    throw err;
   }
 }
 
@@ -727,6 +830,41 @@ async function discoverChat(cfg) {
       + 'Или: сделай бота администратором канала, напиши в канал любое сообщение и запусти ещё раз.');
   }
   return { id: String(hit.id), title: hit.title || '' };
+}
+
+/** Создаёт/обновляет закреплённое сообщение. Правит его, только если что-то поменялось или прошло 30 минут. */
+async function updatePinned(cfg, state, chat, body, now) {
+  const pin = state.pin || {};
+  const fresh = pin.body === body && now - (pin.at || 0) < 30 * MIN;
+  if (fresh && pin.id) return;
+  const text = `${body}\n🔄 Перевірено о ${hm(now)}`;
+  if (cfg.dryRun) {
+    console.log('\n----- закреплённое -----\n' + text + '\n------------------------');
+    state.pin = { id: pin.id || 1, body, at: now };
+    return;
+  }
+  if (!chat) return;
+  if (pin.id) {
+    try {
+      await tg(cfg, 'editMessageText', { chat_id: chat, message_id: pin.id, text, parse_mode: 'HTML', disable_web_page_preview: true });
+      state.pin = { id: pin.id, body, at: now };
+      return;
+    } catch (e) {
+      if (/not modified/i.test(e.tgDesc || '')) {
+        state.pin = { id: pin.id, body, at: now };
+        return;
+      }
+      if (!/not found|can't be edited|message_id_invalid/i.test(e.tgDesc || '')) throw e;
+      // сообщение удалили — создаём новое
+    }
+  }
+  const m = await tg(cfg, 'sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true, disable_notification: true });
+  state.pin = { id: m.message_id, body, at: now };
+  try {
+    await tg(cfg, 'pinChatMessage', { chat_id: chat, message_id: m.message_id, disable_notification: true });
+  } catch (e) {
+    console.log(`::warning::Не получилось закрепить сообщение (дай боту право редактировать/закреплять): ${e.message}`);
+  }
 }
 
 // ───────────────────────── Запуск ─────────────────────────
@@ -743,6 +881,11 @@ export function readConfig(env = process.env) {
     house: String(env.HOUSE || '1А').trim(),
     group: group ? `GPV${group}` : '',
     warnMin: Number(env.WARN_MIN) > 0 ? Number(env.WARN_MIN) : 30,
+    // тихие часы: сообщения без звука (аварии — со звуком). QUIET="0" выключает
+    quietFrom: env.QUIET === '0' ? 0 : Number.isFinite(Number(env.QUIET_FROM)) && env.QUIET_FROM !== undefined && env.QUIET_FROM !== '' ? Number(env.QUIET_FROM) : 23,
+    quietTo: env.QUIET === '0' ? 0 : Number.isFinite(Number(env.QUIET_TO)) && env.QUIET_TO !== undefined && env.QUIET_TO !== '' ? Number(env.QUIET_TO) : 7,
+    summaryHour: Number.isFinite(Number(env.SUMMARY_HOUR)) && env.SUMMARY_HOUR ? Number(env.SUMMARY_HOUR) : 7,
+    pin: env.PIN !== '0',
     dtekUrl: env.DTEK_URL || 'https://www.dtek-krem.com.ua/ua/shutdowns',
     mirrorUrl: env.MIRROR_URL || 'https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/data/kyiv-region.json',
     stateFile: env.STATE_FILE || 'state.json',
@@ -844,7 +987,8 @@ export async function main(env = process.env, deps = {}) {
           state.chat = chat;
           log(`Канал найден автоматически: ${found.title}`);
         }
-        await tg(cfg, 'sendMessage', { chat_id: chat, text: a.text, parse_mode: 'HTML', disable_web_page_preview: true });
+        const quiet = isNight(now, cfg) && !a.loud;
+        await tg(cfg, 'sendMessage', { chat_id: chat, text: a.text, parse_mode: 'HTML', disable_web_page_preview: true, disable_notification: quiet });
       }
       sent++;
     }
@@ -852,6 +996,16 @@ export async function main(env = process.env, deps = {}) {
     saveState(cfg.stateFile, state);
   }
   log(`Готово. Отправлено сообщений: ${sent}`);
+
+  // 5. Закреплённое сообщение «Зараз»
+  if (cfg.pin && (fact || addr.ok)) {
+    try {
+      await updatePinned(cfg, state, chat, statusBody(state, { addr, fact }, now, cfg, plan), now);
+    } catch (e) {
+      console.log(`::warning::Не удалось обновить закреплённое сообщение: ${e.message}`);
+    }
+    saveState(cfg.stateFile, state);
+  }
 
   if (!fact && !addr.ok) {
     throw new Error('Ни сайт ДТЕК, ни резервный график сейчас недоступны. Попробую при следующем запуске.');

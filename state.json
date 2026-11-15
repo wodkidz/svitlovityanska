@@ -4,7 +4,8 @@
   "group": "GPV2.1",
   "sched": {
     "2026-11-14": "YYYYYYYYNNNNNNNNYYYYYYYYYYYYYNNNNNNNNYYYYYYYYYYY",
-    "2026-11-15": "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYNNNN"
+    "2026-11-15": "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYNNNN",
+    "2026-11-16": "NNNNNYYYYYYYYYYYYYYNNNNNNNNYYYYYYYYYYYYYNNNNNNYY"
   },
   "week": "2026-W46",
   "summaryFor": "2026-11-14",
@@ -20,7 +21,7 @@
   ],
   "pin": {
     "id": 6,
-    "body": "📍 <b>Вітянська, 1А</b> · група 2.1\n🟢 Зараз за графіком: світло є\n🗓 Наступне вимкнення: <b>22:00 - 24:00 (~2 години)</b>\n✅ ДТЕК по будинку: відключень немає",
-    "at": 1794754788052
+    "body": "📍 <b>Вітянська, 1А</b> · група 2.1\n🔴 Зараз за графіком: відключення до <b>02:30</b>\n🗓 Наступне вимкнення: <b>завтра 09:30 - 13:30 (~4 години)</b>\n✅ ДТЕК по будинку: відключень немає",
+    "at": 1794773717763
   }
 }

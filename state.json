@@ -3,7 +3,8 @@
   "addrOk": true,
   "group": "GPV2.1",
   "sched": {
-    "2026-11-19": "YYYYYYYYYYYYYYYYYYYYYNNYYYYYYYYYYYYYYYYYYYYNNNNN"
+    "2026-11-19": "YYYYYYYYYYYYYYYYYYYYYNNYYYYYYYYYYYYYYYYYYYYNNNNN",
+    "2026-11-20": "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
   },
   "week": "2026-W47",
   "summaryFor": "2026-11-18",
@@ -51,8 +52,8 @@
   ],
   "pin": {
     "id": 6,
-    "body": "📍 <b>Вітянська, 1А</b> · група 2.1\n🗓 Графік зараз недоступний\n✅ ДТЕК по будинку: відключень немає",
-    "at": 1795143647371
+    "body": "📍 <b>Вітянська, 1А</b> · група 2.1\n🟢 Зараз за графіком: світло є\n🗓 Наступних відключень у графіку немає\n✅ ДТЕК по будинку: відключень немає",
+    "at": 1795144822051
   },
   "warned": [
     1795077000000,

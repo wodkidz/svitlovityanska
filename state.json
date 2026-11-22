@@ -7,7 +7,7 @@
     "2026-11-22": "YYYYYYYYYYYYYYYYYYYYYYYYNNNNNNNNNNNNNNNYYYYYYNNN"
   },
   "week": "2026-W47",
-  "summaryFor": "2026-11-20",
+  "summaryFor": "2026-11-21",
   "hist": [
     {
       "date": "2026-11-14",
@@ -64,6 +64,14 @@
       "offN": 2,
       "n": 2,
       "min": 494
+    },
+    {
+      "date": "2026-11-21",
+      "sched": true,
+      "offMin": 180,
+      "offN": 1,
+      "n": 0,
+      "min": 0
     }
   ],
   "pin": {
@@ -72,7 +80,6 @@
     "at": 1795323031039
   },
   "warned": [
-    1795237200000,
     1795269600000
   ],
   "notice": null,

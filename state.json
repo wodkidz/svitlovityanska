@@ -7,7 +7,7 @@
     "2026-11-26": "NNYYYYYYYYYYYYYYYYYYYYNNNNNNNNNNNNNYYYYYYYYNNNNN"
   },
   "week": "2026-W48",
-  "summaryFor": "2026-11-24",
+  "summaryFor": "2026-11-25",
   "hist": [
     {
       "date": "2026-11-14",
@@ -93,6 +93,14 @@
       "date": "2026-11-24",
       "sched": true,
       "offMin": 630,
+      "offN": 2,
+      "n": 0,
+      "min": 0
+    },
+    {
+      "date": "2026-11-25",
+      "sched": true,
+      "offMin": 420,
       "offN": 2,
       "n": 0,
       "min": 0
